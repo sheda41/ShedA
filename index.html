@@ -829,8 +829,8 @@ async function loadNews() {
       </div>
       <div class="news-list">
         ${items.map((item, idx) => {
-          const title = item.title.replace(/<[^>]+>/g, '');
-          const desc  = item.description.replace(/<[^>]+>/g, '');
+          const title = decodeEntities(item.title.replace(/<[^>]+>/g, ''));
+          const desc  = decodeEntities(item.description.replace(/<[^>]+>/g, ''));
           const date  = item.pubDate ? new Date(item.pubDate).toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric' }) : '';
           const link  = item.originallink || item.link;
           return `
@@ -866,8 +866,8 @@ async function downloadNewsDocx(idx) {
   const item = state.newsItems[idx];
   if (!item) return;
 
-  const title = item.title.replace(/<[^>]+>/g, '');
-  const desc  = item.description.replace(/<[^>]+>/g, '');
+  const title = decodeEntities(item.title.replace(/<[^>]+>/g, ''));
+  const desc  = decodeEntities(item.description.replace(/<[^>]+>/g, ''));
   const link  = item.originallink || item.link;
   const corp  = state.selectedCorp?.corpName || '';
   const now   = new Date(item.pubDate || Date.now());
@@ -1017,6 +1017,11 @@ function setContent(html, cacheTab) {
 }
 function showLoading() { document.getElementById('mainContent').innerHTML = '<div class="loading"><div class="spinner"></div> 데이터 조회 중…</div>'; }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function decodeEntities(s) {
+  const el = document.createElement('textarea');
+  el.innerHTML = s;
+  return el.value;
+}
 function highlight(text, q) {
   const idx = text.toLowerCase().indexOf(q.toLowerCase());
   if (idx < 0) return text;

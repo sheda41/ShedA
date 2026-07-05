@@ -10,18 +10,18 @@
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
   :root {
-    --bg: #0f1117;
-    --surface: #181c27;
-    --surface2: #1f2438;
-    --border: #2a3050;
-    --accent: #4f8ef7;
+    --bg: #eef3fb;
+    --surface: #ffffff;
+    --surface2: #f3f7fd;
+    --border: #dbe4f3;
+    --accent: #2f6fe0;
     --accent2: #7c5cbf;
-    --text: #e8ecf4;
-    --text-sub: #8892aa;
-    --text-dim: #4a5270;
-    --green: #34c98a;
-    --red: #f05a6a;
-    --yellow: #f5c842;
+    --text: #16203a;
+    --text-sub: #5b6b8c;
+    --text-dim: #93a1bf;
+    --green: #159a5b;
+    --red: #dc3545;
+    --yellow: #d97706;
     --radius: 10px;
   }
 
@@ -73,7 +73,7 @@
   /* Corp list */
   .corp-item { display: flex; flex-direction: column; padding: 9px 10px; border-radius: 7px; cursor: pointer; transition: background 0.15s; border: 1px solid transparent; margin-bottom: 2px; }
   .corp-item:hover { background: var(--surface2); }
-  .corp-item.active { background: rgba(79,142,247,0.1); border-color: rgba(79,142,247,0.3); }
+  .corp-item.active { background: rgba(47,111,224,0.1); border-color: rgba(47,111,224,0.3); }
   .corp-name { font-weight: 600; font-size: 13px; }
   .corp-meta { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
 
@@ -100,8 +100,8 @@
   .corp-header-left h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
   .corp-header-left p { font-size: 12px; color: var(--text-sub); }
   .corp-badges { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-  .badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(79,142,247,0.12); color: var(--accent); border: 1px solid rgba(79,142,247,0.2); }
-  .badge.green { background: rgba(52,201,138,0.12); color: var(--green); border-color: rgba(52,201,138,0.2); }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(47,111,224,0.12); color: var(--accent); border: 1px solid rgba(47,111,224,0.2); }
+  .badge.green { background: rgba(21,154,91,0.12); color: var(--green); border-color: rgba(21,154,91,0.2); }
 
   /* KPI cards */
   .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
@@ -127,10 +127,10 @@
   .fin-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .fin-table th { background: var(--surface2); color: var(--text-sub); font-weight: 500; padding: 9px 14px; text-align: right; border-bottom: 1px solid var(--border); font-size: 11px; }
   .fin-table th:first-child { text-align: left; }
-  .fin-table td { padding: 8px 14px; border-bottom: 1px solid rgba(42,48,80,0.5); text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .fin-table td { padding: 8px 14px; border-bottom: 1px solid rgba(219,228,243,0.8); text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
   .fin-table td:first-child { font-family: 'Noto Sans KR', sans-serif; text-align: left; color: var(--text-sub); padding-left: 20px; }
-  .fin-table tr.group-header td { background: rgba(31,36,56,0.6); color: var(--text); font-weight: 600; font-family: 'Noto Sans KR', sans-serif; padding-left: 14px; }
-  .fin-table tr:hover td { background: rgba(79,142,247,0.04); }
+  .fin-table tr.group-header td { background: var(--surface2); color: var(--text); font-weight: 600; font-family: 'Noto Sans KR', sans-serif; padding-left: 14px; }
+  .fin-table tr:hover td { background: rgba(47,111,224,0.04); }
   .val-pos { color: var(--green); }
   .val-neg { color: var(--red); }
 
@@ -138,7 +138,7 @@
   .loading { display: flex; align-items: center; justify-content: center; height: 200px; gap: 10px; color: var(--text-dim); }
   .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .error-box { background: rgba(240,90,106,0.08); border: 1px solid rgba(240,90,106,0.25); border-radius: var(--radius); padding: 16px 20px; color: var(--red); font-size: 13px; }
+  .error-box { background: rgba(220,53,69,0.08); border: 1px solid rgba(220,53,69,0.25); border-radius: var(--radius); padding: 16px 20px; color: var(--red); font-size: 13px; }
   .empty-state { text-align: center; padding: 48px 20px; color: var(--text-dim); font-size: 13px; }
 
   ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -155,7 +155,7 @@
     transition: border-color 0.15s, background 0.15s;
     cursor: pointer;
   }
-  .news-card:hover { border-color: var(--accent); background: rgba(79,142,247,0.05); }
+  .news-card:hover { border-color: var(--accent); background: rgba(47,111,224,0.05); }
   .news-title {
     font-size: 13px;
     font-weight: 600;
@@ -184,8 +184,8 @@
   .news-card-body { flex: 1; min-width: 0; }
   .news-word-btn {
     flex-shrink: 0;
-    background: rgba(79,142,247,0.12);
-    border: 1px solid rgba(79,142,247,0.3);
+    background: rgba(47,111,224,0.12);
+    border: 1px solid rgba(47,111,224,0.3);
     border-radius: 6px;
     color: var(--accent);
     cursor: pointer;
@@ -198,7 +198,7 @@
     font-family: 'Noto Sans KR', sans-serif;
     line-height: 1.4;
   }
-  .news-word-btn:hover { background: rgba(79,142,247,0.22); }
+  .news-word-btn:hover { background: rgba(47,111,224,0.22); }
   .news-source {
     color: var(--accent);
     font-weight: 500;
@@ -571,8 +571,8 @@ function renderOverview() {
   setContent(html, 'overview');
 
   setTimeout(() => {
-    const gridColor = 'rgba(42,48,80,0.8)';
-    const tickColor = '#8892aa';
+    const gridColor = 'rgba(219,228,243,0.8)';
+    const tickColor = '#5b6b8c';
     const baseScales = {
       x: { ticks: { color: tickColor, font: { size: 10 } }, grid: { color: gridColor } },
       y: { ticks: { color: tickColor, font: { size: 10 } }, grid: { color: gridColor } }
@@ -590,8 +590,8 @@ function renderOverview() {
         datasets: [{
           label: '매출액',
           data: vals(myRev),
-          backgroundColor: 'rgba(79,142,247,0.6)',
-          borderColor: 'rgba(79,142,247,0.9)',
+          backgroundColor: 'rgba(47,111,224,0.6)',
+          borderColor: 'rgba(47,111,224,0.9)',
           borderWidth: 1, borderRadius: 5,
         }]
       },
@@ -611,8 +611,8 @@ function renderOverview() {
           {
             label: '영업이익',
             data: vals(myOp),
-            backgroundColor: 'rgba(52,201,138,0.65)',
-            borderColor: 'rgba(52,201,138,0.9)',
+            backgroundColor: 'rgba(21,154,91,0.65)',
+            borderColor: 'rgba(21,154,91,0.9)',
             borderWidth: 1, borderRadius: 4,
           },
           {
@@ -641,10 +641,10 @@ function renderOverview() {
           {
             label: '영업이익률',
             data: myOpMargin,
-            borderColor: 'rgba(79,142,247,1)',
-            backgroundColor: 'rgba(79,142,247,0.15)',
+            borderColor: 'rgba(47,111,224,1)',
+            backgroundColor: 'rgba(47,111,224,0.15)',
             fill: true, tension: 0.3,
-            pointBackgroundColor: 'rgba(79,142,247,1)', pointRadius: 4,
+            pointBackgroundColor: 'rgba(47,111,224,1)', pointRadius: 4,
           },
           {
             label: '순이익률',
@@ -673,18 +673,18 @@ function renderOverview() {
           {
             label: 'ROA',
             data: myROA,
-            borderColor: 'rgba(52,201,138,1)',
-            backgroundColor: 'rgba(52,201,138,0.15)',
+            borderColor: 'rgba(21,154,91,1)',
+            backgroundColor: 'rgba(21,154,91,0.15)',
             fill: true, tension: 0.3,
-            pointBackgroundColor: 'rgba(52,201,138,1)', pointRadius: 4,
+            pointBackgroundColor: 'rgba(21,154,91,1)', pointRadius: 4,
           },
           {
             label: 'ROE',
             data: myROE,
-            borderColor: 'rgba(240,90,106,1)',
-            backgroundColor: 'rgba(240,90,106,0.12)',
+            borderColor: 'rgba(220,53,69,1)',
+            backgroundColor: 'rgba(220,53,69,0.12)',
             fill: true, tension: 0.3,
-            pointBackgroundColor: 'rgba(240,90,106,1)', pointRadius: 4,
+            pointBackgroundColor: 'rgba(220,53,69,1)', pointRadius: 4,
           },
         ]
       },

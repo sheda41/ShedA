@@ -892,7 +892,7 @@ async function downloadNewsDocx(idx) {
     // 2. docx 생성 (사내 양식)
     const { Document, Packer, Paragraph, TextRun, AlignmentType } = window.docx || docx;
     const commonP = { autoSpaceDN: false, autoSpaceDE: false };
-    const font = '맑은 고딕';
+    const font = '바탕체';
     const children = [];
 
     // 전체 제목 (중앙, 굵게, 밑줄)

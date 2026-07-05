@@ -29,7 +29,7 @@ JSON만 출력:
 {"main_content":"핵심내용 3~5문장","implications":"시사점 2~3문장","terms":[{"term":"약어","explanation":"설명"}]}`;
 
   const payload = JSON.stringify({
-    model: 'claude-sonnet-4-6',
+    model: 'claude-sonnet-5',
     max_tokens: 1000,
     messages: [{ role: 'user', content: prompt }],
   });
@@ -55,3 +55,26 @@ JSON만 출력:
           catch(e) { reject(new Error('파싱실패: ' + data.slice(0, 200))); }
         });
       });
+      req2.on('error', e => reject(new Error('연결실패: ' + e.message)));
+      req2.write(payload);
+      req2.end();
+    });
+
+    if (result.status !== 200) {
+      res.status(500).json({
+        error: 'Anthropic 오류',
+        status: result.status,
+        detail: result.body,
+      });
+      return;
+    }
+
+    const text = result.body.content?.[0]?.text || '';
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('JSON없음: ' + text.slice(0, 200));
+
+    res.status(200).json(JSON.parse(match[0]));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};

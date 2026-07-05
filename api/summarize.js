@@ -69,7 +69,8 @@ JSON만 출력:
       return;
     }
 
-    const text = result.body.content?.[0]?.text || '';
+    const textBlock = (result.body.content || []).find(b => b.type === 'text');
+    const text = textBlock?.text || '';
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) throw new Error('JSON없음: ' + text.slice(0, 200));
 

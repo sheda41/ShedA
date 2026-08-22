@@ -36,6 +36,7 @@ module.exports = async function handler(req, res) {
     const buffer = await fetchBuffer(dartUrl);
     const body = buffer.toString('utf-8');
     const data = JSON.parse(body);
+    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
     if (data.status === '013') { res.status(200).json({ status: '000', list: [] }); return; }
     if (data.status && data.status !== '000') {
       res.status(400).json({ error: data.message, dart_status: data.status });

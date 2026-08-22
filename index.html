@@ -268,6 +268,7 @@ const state = {
   year: null,
   cache: { overview: null, financial: null, news: null },
   newsItems: [],
+  newsPrefetch: null,
 };
 
 window.onload = () => {
@@ -281,12 +282,14 @@ async function dartGet(endpoint, params, retry = 2) {
   for (const [k,v] of Object.entries(params)) if (v) q.set(k, v);
   try {
     const res = await fetch('/api/dart?' + q.toString());
+    if (res.status >= 400 && res.status < 500) throw Object.assign(new Error('조회 실패: ' + res.status), { fatal: true });
     if (!res.ok) throw new Error('서버 오류: ' + res.status);
     const data = await res.json();
-    if (data.status && data.status !== '000') throw new Error(data.message || '조회 실패 (' + data.status + ')');
+    // DART가 확정적으로 내린 응답은 다시 물어봐도 답이 같으므로 재시도하지 않는다.
+    if (data.status && data.status !== '000') throw Object.assign(new Error(data.message || '조회 실패 (' + data.status + ')'), { fatal: true });
     return data;
   } catch(e) {
-    if (retry > 0) return dartGet(endpoint, params, retry - 1);
+    if (retry > 0 && !e.fatal) return dartGet(endpoint, params, retry - 1);
     throw e;
   }
 }
@@ -350,7 +353,19 @@ function selectCorp(corpCode, corpName, stockCode) {
   state.cache = { overview: null, financial: null, news: null };
   document.querySelectorAll('.corp-item').forEach(el => el.classList.remove('active'));
   event.currentTarget.classList.add('active');
+  prefetchNews(corpName);
   loadData();
+}
+
+// 기업을 고르는 순간 뉴스를 미리 받아둔다. 사용자가 뉴스 탭을 열 때쯤엔
+// 이미 끝나 있어서 스피너를 볼 일이 거의 없다.
+function prefetchNews(corpName) {
+  state.newsPrefetch = {
+    corpName,
+    promise: fetch('/api/news?query=' + encodeURIComponent(corpName))
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('뉴스 API 오류: ' + r.status)))
+      .catch(e => ({ __error: e.message })),
+  };
 }
 
 function loadByYear() {
@@ -403,11 +418,24 @@ async function loadData() {
     const corpCode = state.selectedCorp.corpCode;
     const years = [year-4, year-3, year-2, year-1, year];
 
-    // 5개년 재무데이터 + 회사정보 전부 동시 병렬 호출
-    const [corpInfo, ...multiYearData] = await Promise.all([
-      dartGet('/company.json', { corp_code: corpCode }).catch(() => ({})),
-      ...years.map(y => fetchYear(corpCode, y))
-    ]);
+    // 회사정보 + 5개년 재무데이터를 요청 하나로 받는다.
+    // 예전에는 브라우저가 6~11개를 동시에 쏴서 연결 슬롯(오리진당 6개)을 다 먹었고,
+    // 그 바람에 뉴스 요청이 뒤에서 대기하다 늦게 출발했다.
+    let corpInfo, multiYearData;
+    try {
+      const res = await fetch(`/api/dart-bundle?corp_code=${encodeURIComponent(corpCode)}&years=${years.join(',')}`);
+      if (!res.ok) throw new Error('서버 오류: ' + res.status);
+      const bundle = await res.json();
+      if (bundle.error) throw new Error(bundle.error);
+      corpInfo = bundle.corpInfo || {};
+      multiYearData = bundle.years || [];
+    } catch(bundleErr) {
+      // 번들 엔드포인트를 쓸 수 없으면 기존 방식(연도별 개별 호출)으로 폴백
+      [corpInfo, ...multiYearData] = await Promise.all([
+        dartGet('/company.json', { corp_code: corpCode }).catch(() => ({})),
+        ...years.map(y => fetchYear(corpCode, y))
+      ]);
+    }
 
     const baseYear = multiYearData.find(d => d.year === year);
     const fsDiv = baseYear?.fsDiv || 'CFS';
@@ -419,10 +447,12 @@ async function loadData() {
       multiYear: multiYearData,
     };
 
+    // 재무데이터가 늦게 도착했을 때 사용자가 이미 뉴스 탭으로 옮겨갔다면
+    // 화면을 덮어쓰지 않는다. 나중에 탭을 되돌리면 그때 그린다.
     if (state.currentTab === 'overview') renderOverview();
-    else renderFinancial();
+    else if (state.currentTab === 'financial') renderFinancial();
   } catch(e) {
-    setContent(`<div class="error-box">❌ ${escHtml(e.message)}</div>`);
+    if (state.currentTab !== 'news') setContent(`<div class="error-box">❌ ${escHtml(e.message)}</div>`);
   }
 }
 
@@ -803,15 +833,20 @@ function redrawCharts() {
 }
 
 // ── 뉴스 탭 ──
-async function loadNews() {
+async function loadNews(force) {
   if (!state.selectedCorp) return;
+  const corpName = state.selectedCorp.corpName;
+  if (force) state.newsPrefetch = null;   // 새로고침은 선반입분을 버리고 다시 받는다
   setContent('<div class="loading"><div class="spinner"></div> 뉴스 검색 중…</div>');
 
   try {
-    const query = encodeURIComponent(state.selectedCorp.corpName);
-    const res = await fetch(`/api/news?query=${query}`);
-    if (!res.ok) throw new Error('뉴스 API 오류: ' + res.status);
-    const data = await res.json();
+    const pf = state.newsPrefetch;
+    if (!pf || pf.corpName !== corpName) prefetchNews(corpName);
+    const data = await state.newsPrefetch.promise;
+
+    // 기다리는 사이 다른 기업으로 옮겨갔다면 그리지 않는다.
+    if (state.selectedCorp?.corpName !== corpName) return;
+    if (data.__error) throw new Error(data.__error);
     const items = data.items || [];
 
     if (!items.length) {
@@ -825,7 +860,7 @@ async function loadNews() {
           <strong style="font-size:15px">${escHtml(state.selectedCorp.corpName)}</strong>
           <span style="color:var(--text-dim);font-size:12px;margin-left:8px">최신 뉴스 ${items.length}건</span>
         </div>
-        <button class="btn" style="font-size:11px;padding:5px 12px" onclick="loadNews()">🔄 새로고침</button>
+        <button class="btn" style="font-size:11px;padding:5px 12px" onclick="loadNews(true)">🔄 새로고침</button>
       </div>
       <div class="news-list">
         ${items.map((item, idx) => {

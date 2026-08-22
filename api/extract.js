@@ -102,17 +102,47 @@ function fetchText(urlStr, redirects) {
 }
 
 // ── HTML → 본문 텍스트 ─────────────────────────────────────
+// 언론사 본문에는 &lsquo; &rdquo; &middot; 같은 엔티티가 흔하다.
+// 몇 개만 처리하면 보고서에 그대로 노출되므로 이름/숫자 엔티티를 모두 푼다.
+const NAMED_ENTITIES = {
+  nbsp:' ', ensp:' ', emsp:' ', thinsp:' ', shy:'', zwj:'', zwnj:'',
+  amp:'&', lt:'<', gt:'>', quot:'"', apos:"'",
+  lsquo:'\u2018', rsquo:'\u2019', sbquo:'\u201A',
+  ldquo:'\u201C', rdquo:'\u201D', bdquo:'\u201E',
+  lsaquo:'\u2039', rsaquo:'\u203A', laquo:'\u00AB', raquo:'\u00BB',
+  hellip:'\u2026', middot:'\u00B7', bull:'\u2022',
+  ndash:'\u2013', mdash:'\u2014', minus:'\u2212',
+  copy:'\u00A9', reg:'\u00AE', trade:'\u2122', deg:'\u00B0', permil:'\u2030',
+  times:'\u00D7', divide:'\u00F7', plusmn:'\u00B1',
+  euro:'\u20AC', pound:'\u00A3', yen:'\u00A5', cent:'\u00A2',
+  sect:'\u00A7', para:'\u00B6', dagger:'\u2020',
+  larr:'\u2190', rarr:'\u2192', prime:'\u2032',
+};
+
+function decodeEntities(s) {
+  return String(s).replace(/&(#[xX]?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]{1,9});/g, (m, e) => {
+    if (e[0] === '#') {
+      const hex = e[1] === 'x' || e[1] === 'X';
+      const code = parseInt(hex ? e.slice(2) : e.slice(1), hex ? 16 : 10);
+      if (!Number.isFinite(code) || code <= 0 || code > 0x10FFFF) return m;
+      try { return String.fromCodePoint(code); } catch(err) { return m; }
+    }
+    if (Object.prototype.hasOwnProperty.call(NAMED_ENTITIES, e)) return NAMED_ENTITIES[e];
+    const lower = e.toLowerCase();
+    return Object.prototype.hasOwnProperty.call(NAMED_ENTITIES, lower) ? NAMED_ENTITIES[lower] : m;
+  });
+}
+
 function htmlToText(html) {
-  return html
+  const stripped = html
     .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/<(script|style|noscript|iframe|svg)[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<(nav|header|footer|aside|form)[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|li|h[1-6]|section|article)>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
-    .replace(/[ \t ]+/g, ' ')
+    .replace(/<\/(p|div|li|h[1-6]|section|article|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ');
+  return decodeEntities(stripped)
+    .replace(/[ \t\u00a0]+/g, ' ')
     .replace(/\n{2,}/g, '\n')
     .trim();
 }
@@ -163,8 +193,10 @@ function tokenize(s) {
   return raw.map(normalizeWord).filter(w => w.length >= 2 && !STOPWORDS.has(w));
 }
 
-function summarize(sentences, corpName, maxN) {
-  if (!sentences.length) return [];
+// 인용문은 사실보다 수사에 가까워 요약 본문으로는 잘 맞지 않는다.
+const QUOTE = /[“”"].{10,}[“”"]|말했다|밝혔다고|덧붙였다|강조했다/;
+
+function scoreSentences(sentences, corpName) {
   const freq = Object.create(null);
   const tokensPer = sentences.map(s => {
     const t = tokenize(s);
@@ -174,31 +206,101 @@ function summarize(sentences, corpName, maxN) {
 
   const scored = sentences.map((s, i) => {
     const words = tokensPer[i];
-    if (!words.length) return { i, s, score: -1 };
+    if (!words.length) return { i, s, score: -1, tokens: new Set() };
     const uniq = [...new Set(words)];
-    // 중요 단어를 많이 담되 불필요하게 길지 않은 문장을 선호
-    let score = uniq.reduce((a, w) => a + freq[w], 0) / Math.sqrt(words.length);
+    // 길이로 나누지 않고 "단어 하나당 평균 중요도"를 쓴다.
+    // 합계를 쓰면 그냥 긴 문장이 항상 이겨서 요약이 되지 않는다.
+    let score = uniq.reduce((a, w) => a + freq[w], 0) / uniq.length;
+    // 지나치게 긴 문장은 감점 (한 문장이 요약 분량을 다 먹는 걸 막는다)
+    if (s.length > 110) score *= 110 / s.length;
     // 뉴스는 역피라미드 구조라 앞 문장에 핵심이 몰린다
-    score *= 1 + Math.max(0, 8 - i) * 0.05;
-    if (corpName && s.includes(corpName)) score *= 1.15;
-    return { i, s, score };
+    score *= 1 + Math.max(0, 6 - i) * 0.06;
+    if (corpName && s.includes(corpName)) score *= 1.1;
+    if (QUOTE.test(s)) score *= 0.6;
+    return { i, s, score, tokens: new Set(words) };
   });
 
-  return scored
-    .filter(x => x.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxN)
-    .sort((a, b) => a.i - b.i)      // 원문 순서를 지켜야 읽힌다
-    .map(x => x.s);
+  return scored.filter(x => x.score > 0);
+}
+
+function overlapRatio(a, b) {
+  if (!a.size || !b.size) return 0;
+  let hit = 0;
+  for (const w of a) if (b.has(w)) hit++;
+  return hit / Math.min(a.size, b.size);
+}
+
+// 점수 순으로 훑되, 이미 고른 문장과 내용이 겹치면 건너뛰고,
+// 글자수 예산을 넘으면 멈춘다. 이 두 가지가 있어야 실제로 압축된다.
+function pickSentences(scored, maxN, maxChars) {
+  const chosen = [];
+  let chars = 0;
+  for (const cand of [...scored].sort((a, b) => b.score - a.score)) {
+    if (chosen.length >= maxN || chars >= maxChars) break;
+    if (chosen.some(c => overlapRatio(c.tokens, cand.tokens) > 0.55)) continue;
+    if (chosen.length && chars + cand.s.length > maxChars) continue;
+    chosen.push(cand);
+    chars += cand.s.length;
+  }
+  return chosen.sort((a, b) => a.i - b.i).map(x => x.s);   // 원문 순서를 지켜야 읽힌다
+}
+
+function summarize(sentences, corpName, maxN, maxChars) {
+  if (!sentences.length) return [];
+  return pickSentences(scoreSentences(sentences, corpName), maxN, maxChars);
 }
 
 // 없는 시사점을 지어내지 않고, 기사에 실제로 적힌 전망·예상 문장을 뽑는다.
-const FUTURE = /(전망|예상|기대|계획|방침|목표|관측|추진|검토|가능성|우려|될\s*것|할\s*것|보인다|분석된다|평가된다|풀이된다)/;
+// 명사만 보면 "지속가능성"이 "가능성"에 걸리는 식으로 사실 문장까지 끌려온다.
+// 서술형 어미까지 함께 요구하고, 복합어 안에 묻힌 낱말은 앞이 한글이면 제외한다.
+const FUTURE = new RegExp([
+  '전망(이|된|했|하)', '예상(된|한|했|치)', '기대(된|한|하)',
+  '계획(이|한|을|하)', '방침(이|을)', '목표(로|이|를)',
+  '관측(된|이)', '추진(한|할|하)', '검토(한|할|하|중)',
+  '우려(된|한|가|를)', '예정(이|되)',
+  '(?<![가-힣])가능성', '될\\s*것', '할\\s*것',
+  '보인다', '분석된다', '평가된다', '풀이된다',
+].join('|'));
 
 function findImplications(sentences, used, corpName) {
-  const pool = sentences.filter(s => !used.includes(s) && FUTURE.test(s));
+  const pool = sentences.filter(s => !used.includes(s) && FUTURE.test(s) && !QUOTE.test(s));
   if (!pool.length) return '';
-  return summarize(pool, corpName, 2).join(' ');
+  return summarize(pool, corpName, 2, 200).join(' ');
+}
+
+// 기사 안에 "한국어 풀이(ABBR)" 또는 "ABBR(English words)" 형태가 있으면
+// 사전에 없는 용어라도 기사 자체에서 설명을 얻을 수 있다.
+// 받침 유무에 따라 조사를 고른다 ("책임자를", "지능을")
+function withJosa(word, withBatchim, withoutBatchim) {
+  const code = word.charCodeAt(word.length - 1);
+  if (code < 0xAC00 || code > 0xD7A3) return withBatchim;
+  return (code - 0xAC00) % 28 ? withBatchim : withoutBatchim;
+}
+
+function findAcronyms(text) {
+  const out = [];
+  const seen = new Set();
+
+  // 공백을 허용하면 "DX부문 최고디자인책임자"처럼 앞말이 딸려온다. 붙어있는 말만 받는다.
+  const korThenAbbr = /([가-힣][가-힣·]{1,19})\s*\(\s*([A-Z][A-Za-z0-9.&\-]{1,9})\s*\)/g;
+  let m;
+  while ((m = korThenAbbr.exec(text)) !== null) {
+    const abbr = m[2].trim();
+    const kor = m[1].trim();
+    if (seen.has(abbr) || abbr.length < 2) continue;
+    seen.add(abbr);
+    out.push({ term: abbr, explanation: kor + withJosa(kor, '을', '를') + ' 뜻하는 약어다.' });
+  }
+
+  const abbrThenEng = /(?:^|[^A-Za-z])([A-Z]{2,10})\s*\(\s*([A-Z][A-Za-z][A-Za-z\s]{6,60})\)/g;
+  while ((m = abbrThenEng.exec(text)) !== null) {
+    const abbr = m[1].trim();
+    if (seen.has(abbr)) continue;
+    seen.add(abbr);
+    out.push({ term: abbr, explanation: m[2].trim().replace(/\s+/g, ' ') + '의 약자다.' });
+  }
+
+  return out;
 }
 
 function findTerms(text, maxN) {
@@ -254,14 +356,29 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const main = summarize(sentences, corp, 4);
+  // 원문이 짧으면 예산도 줄여 "요약인데 원문과 같은" 상황을 막는다.
+  const totalChars = sentences.join(' ').length;
+  const budget = Math.max(150, Math.min(320, Math.round(totalChars * 0.35)));
+
+  // 전망·계획 문장은 시사점 몫으로 남겨둔다. 그래야 두 항목이 겹치지 않는다.
+  // 다만 기사가 온통 전망뿐이면 핵심내용이 비므로 그럴 때는 전부 쓴다.
+  const nonFuture = sentences.filter(s => !FUTURE.test(s) || QUOTE.test(s));
+  const main = summarize(nonFuture.length >= 3 ? nonFuture : sentences, corp, 4, budget);
   const implications = findImplications(sentences, main, corp);
   const haystack = title + ' ' + sentences.join(' ');
+
+  // 사전 용어를 먼저 넣고, 모자라면 기사에서 뽑은 약어로 채운다.
+  const terms = findTerms(haystack, 3);
+  const known = new Set(terms.map(t => t.term));
+  for (const a of findAcronyms(haystack)) {
+    if (terms.length >= 4) break;
+    if (!known.has(a.term)) { terms.push(a); known.add(a.term); }
+  }
 
   res.status(200).json({
     main_content: main.join(' '),
     implications,
-    terms: findTerms(haystack, 4),
+    terms,
     source: sourceUsed,
   });
 };

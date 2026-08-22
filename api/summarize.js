@@ -20,7 +20,13 @@ module.exports = async function handler(req, res) {
   if (!title) { res.status(400).json({ error: 'title required' }); return; }
 
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-  if (!ANTHROPIC_KEY) { res.status(500).json({ error: 'API key not set' }); return; }
+  if (!ANTHROPIC_KEY) {
+    res.status(500).json({
+      error: 'ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다. ' +
+             'Vercel 프로젝트 → Settings → Environment Variables 에 추가한 뒤 재배포하세요.',
+    });
+    return;
+  }
 
   const prompt = `다음 뉴스를 JSON으로 요약하세요.
 회사: ${corp}, 제목: ${title}, 내용: ${description}
@@ -61,11 +67,9 @@ JSON만 출력:
     });
 
     if (result.status !== 200) {
-      res.status(500).json({
-        error: 'Anthropic 오류',
-        status: result.status,
-        detail: result.body,
-      });
+      const msg = (result.body && result.body.error && result.body.error.message)
+        || JSON.stringify(result.body).slice(0, 200);
+      res.status(500).json({ error: `Anthropic API 오류 (HTTP ${result.status}): ${msg}` });
       return;
     }
 

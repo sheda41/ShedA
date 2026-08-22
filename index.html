@@ -915,14 +915,27 @@ async function downloadNewsDocx(idx) {
 
   try {
     // 1. AI로 보고서 내용 생성
-    const res = await fetch('/api/summarize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description: desc, corp, date: dateStr, link }),
-    });
-    if (!res.ok) throw new Error('AI 요약 실패: ' + res.status);
-    const summary = await res.json();
-    if (summary.error) throw new Error(summary.error);
+    let summary;
+    try {
+      const res = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description: desc, corp, date: dateStr, link }),
+      });
+      // 서버가 실패 사유를 본문에 담아 보내므로 상태코드만 보고 버리지 않는다.
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || payload.error) {
+        const detail = payload.detail ? ' (' + JSON.stringify(payload.detail).slice(0, 150) + ')' : '';
+        throw new Error((payload.error || 'HTTP ' + res.status) + detail);
+      }
+      summary = payload;
+    } catch(aiErr) {
+      // AI가 안 되더라도 기사 원문만으로 보고서를 만들 수 있게 선택권을 준다.
+      const goOn = confirm('AI 요약에 실패했습니다.\n\n사유: ' + aiErr.message +
+        '\n\nAI 요약 없이 기사 원문으로 보고서를 만들까요?');
+      if (!goOn) return;
+      summary = { main_content: desc, implications: '', terms: [] };
+    }
 
     // 2. docx 생성 (사내 양식)
     const { Document, Packer, Paragraph, TextRun, AlignmentType } = window.docx || docx;
@@ -1035,8 +1048,12 @@ async function downloadNewsDocx(idx) {
     const a = document.createElement('a');
     a.href = url;
     a.download = `${corp}_뉴스보고서_${dateStr.replace(/\./g,'').replace(/\s/g,'')}.docx`;
+    // 링크를 문서에 붙여야 download 속성(파일명)이 확실히 적용된다.
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    // 브라우저가 blob을 다 읽기 전에 해제하면 다운로드가 깨진다.
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
 
   } catch(e) {
     alert('Word 생성 실패: ' + e.message);

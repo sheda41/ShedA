@@ -947,26 +947,33 @@ async function downloadNewsDocx(idx) {
 
   try {
     // 1. AI로 보고서 내용 생성
-    let summary;
-    try {
-      const res = await fetch('/api/summarize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description: desc, corp, date: dateStr, link }),
-      });
+    const reqBody = JSON.stringify({
+      title, description: desc, corp, date: dateStr, link,
+      naverLink: item.link,   // 네이버 뉴스 페이지가 구조가 일정해 본문 추출 성공률이 높다
+    });
+    const post = (url) => fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: reqBody,
+    }).then(async (res) => {
       // 서버가 실패 사유를 본문에 담아 보내므로 상태코드만 보고 버리지 않는다.
       const payload = await res.json().catch(() => ({}));
-      if (!res.ok || payload.error) {
-        const detail = payload.detail ? ' (' + JSON.stringify(payload.detail).slice(0, 150) + ')' : '';
-        throw new Error((payload.error || 'HTTP ' + res.status) + detail);
-      }
-      summary = payload;
+      if (!res.ok || payload.error) throw new Error(payload.error || 'HTTP ' + res.status);
+      return payload;
+    });
+
+    let summary;
+    try {
+      summary = await post('/api/summarize');          // 1순위: AI 요약
     } catch(aiErr) {
-      // AI가 안 되더라도 기사 원문만으로 보고서를 만들 수 있게 선택권을 준다.
-      const goOn = confirm('AI 요약에 실패했습니다.\n\n사유: ' + aiErr.message +
-        '\n\nAI 요약 없이 기사 원문으로 보고서를 만들까요?');
-      if (!goOn) return;
-      summary = { main_content: desc, implications: '', terms: [] };
+      try {
+        summary = await post('/api/extract');           // 2순위: 규칙 기반 자체 분석 (키 불필요)
+      } catch(exErr) {
+        // 둘 다 안 되면 최소한 발췌만으로라도 만들지 물어본다.
+        const goOn = confirm('보고서 자동 생성에 실패했습니다.\n\n' +
+          'AI 요약: ' + aiErr.message + '\n자체 분석: ' + exErr.message +
+          '\n\n기사 발췌만으로 보고서를 만들까요?');
+        if (!goOn) return;
+        summary = { main_content: desc, implications: '', terms: [] };
+      }
     }
 
     // 2. docx 생성 (사내 양식)
